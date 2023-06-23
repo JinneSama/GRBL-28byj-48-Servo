@@ -1,6 +1,6 @@
 Added Support for Laser Engraver.
 
-Gcode M03 S2000 + (Servo Angle 0-180) to Control Servo Angle.
+Gcode M03 S2000 + (Servo Angle 0-180) to Control Servo Angle , 
 Gcode M03 S + (0-255) to Control Laser Power.
 
 #GRBL 28byj-48 + Servo Motor
