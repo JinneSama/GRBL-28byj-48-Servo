@@ -27,12 +27,14 @@
 
 #include "grbl.h"
 
-#define RC_SERVO_SHORT     15       // Timer ticks for 0.6ms pulse duration  (9 for 0.6ms)
-#define RC_SERVO_LONG      32       // Timer ticks for 2.5 ms pulse duration  (39 for 2.5ms)     
+#define RC_SERVO_SHORT     0       // Timer ticks for 0.6ms pulse duration  (9 for 0.6ms)
+#define RC_SERVO_LONG      255       // Timer ticks for 2.5 ms pulse duration  (39 for 2.5ms)     
 //#define RC_SERVO_INVERT     1     // Uncomment to invert servo direction
 
+#define RC_SERVO_SHORT_S     15       // Timer ticks for 0.6ms pulse duration  (9 for 0.6ms)
+#define RC_SERVO_LONG_S      32 
 
-
+uint8_t tool_type = 1;
 void spindle_init()
 {    
   // Configure variable spindle PWM and enable pin, if requried. On the Uno, PWM and enable are
@@ -59,12 +61,22 @@ void spindle_stop()
   #ifdef RC_SERVO_INVERT 
       OCR_REGISTER = RC_SERVO_LONG;
   #else
-      OCR_REGISTER = RC_SERVO_SHORT;
+      if (tool_type == 1){
+        OCR_REGISTER = RC_SERVO_SHORT;
+      }else{
+        OCR_REGISTER = RC_SERVO_SHORT_S;
+      }
   #endif    
 }
 
 void spindle_run(uint8_t direction, float rpm)
 {
+  if (rpm > 2000){
+    tool_type = 0;
+  }else{
+    tool_type = 1;
+  }
+
   if (sys.state == STATE_CHECK_MODE) { return; }
   
   // Empty planner buffer to ensure spindle is set when programmed.
@@ -89,7 +101,7 @@ void spindle_run(uint8_t direction, float rpm)
    
       // TODO: Install the optional capability for frequency-based output for servos.
       #define SPINDLE_RPM_RANGE (SPINDLE_MAX_RPM-SPINDLE_MIN_RPM)
-      #define RC_SERVO_RANGE (RC_SERVO_LONG-RC_SERVO_SHORT)
+      #define RC_SERVO_RANGE ((tool_type == 0) ? (RC_SERVO_LONG_S-RC_SERVO_SHORT_S) : (RC_SERVO_LONG-RC_SERVO_SHORT))
 	  
 	  #ifdef CPU_MAP_ATMEGA2560
       	TCCRA_REGISTER = (1<<COMB_BIT) | (1<<WAVE1_REGISTER) | (1<<WAVE0_REGISTER);
@@ -98,7 +110,13 @@ void spindle_run(uint8_t direction, float rpm)
         uint16_t current_pwm;
 	  #else
         TCCRA_REGISTER = (1<<COMB_BIT) | (1<<WAVE1_REGISTER) | (1<<WAVE0_REGISTER);
-        TCCRB_REGISTER = (TCCRB_REGISTER & 0b11111000) | 0x07; // set to 1/1024 Prescaler
+        if (tool_type == 0) {
+          TCCRB_REGISTER = (TCCRB_REGISTER & 0b11111000) | 0x07; // set to 1/1024 Prescaler
+          rpm = rpm - 2000;
+        }else {
+          TCCRB_REGISTER = (TCCRB_REGISTER & 0b11111000) | 0x04;
+        }
+        //TCCRB_REGISTER = (TCCRB_REGISTER & 0b11111000) | 0x07; // set to 1/1024 Prescaler
 	    uint8_t current_pwm;
 	  #endif
 
@@ -112,7 +130,7 @@ void spindle_run(uint8_t direction, float rpm)
           current_pwm = floor( RC_SERVO_LONG - rpm*(RC_SERVO_RANGE/SPINDLE_RPM_RANGE));
           OCR_REGISTER = current_pwm;
       #else
-         current_pwm = floor( rpm*(RC_SERVO_RANGE/SPINDLE_RPM_RANGE) + RC_SERVO_SHORT);
+         current_pwm = floor( rpm*(RC_SERVO_RANGE/SPINDLE_RPM_RANGE) + ((tool_type == 0) ? RC_SERVO_SHORT_S : RC_SERVO_SHORT));
           OCR_REGISTER = current_pwm;
       #endif    
 	  #ifdef MINIMUM_SPINDLE_PWM
